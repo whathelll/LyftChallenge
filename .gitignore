@@ -4,3 +4,4 @@ __pycache__
 lyft_training_data.tar
 model_weights.h5
 Train
+*.npy

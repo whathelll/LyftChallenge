@@ -95,37 +95,52 @@ class DilatedCNN(tf.keras.Model):
     x = self.last_layer(x)
     return x
 
-  def loss(self, predictions, targets):
+  def loss(self, y_hat, y):
     """road = layer [0], car = layer [1]"""
-    y = self(inputs)
-    loss = tf.losses.softmax_cross_entropy(onehot_labels=targets, logits=y)
+    road_y_hat = y_hat[:, :, :, 0]
+    car_y_hat = y_hat[:, :, :, 1]
+    road_y = y[:, :, :, 0]
+    car_y = y[:, :, :, 1]
+    car = self.loss_dice_coef(car_y_hat, car_y)
+    road = self.loss_dice_coef(road_y_hat, road_y)
+
+    loss = (9.*car + road)/10.
     return loss
 
-  def loss_dice_coef(self, y_hat, y):
-    #         y = tf.reshape(y, [-1])
-    #         y_hat = tf.reshape(y_hat, [-1])
 
-    intersection = tf.reduce_sum(y * y_hat)
-    top = 2 * intersection + 1
-    bottom = tf.reduce_sum(y) + tf.reduce_sum(y_hat) + 1
-    return -top / bottom
-  #         return tf.losses.sparse_softmax_cross_entropy(labels=y, logits=y_hat)
+  def loss_dice_coef(self, y_hat, y, beta=1.):
+    # beta = beta ** 2
+    y = tf.reshape(y, [y.shape[0], -1])
+    y_hat = tf.reshape(y_hat, [y_hat.shape[0], -1])
+
+    intersection = tf.reduce_sum(y * y_hat, axis=1, keep_dims=True)
+    top = 2. * intersection + 1.
+
+    # top = (1 + beta) * top
+    # print("intersection", intersection.shape)
+    bottom = tf.reduce_sum(y, axis=1, keep_dims=True) + tf.reduce_sum(y_hat, axis=1, keep_dims=True) + 1.
+
+    # bottom = beta * bottom + 1
+    return 1. - top / bottom
 
   def grad(self, x, y):
     with tfe.GradientTape() as tape:
       y_hat = self(x)
-      loss_value = self.loss_dice_coef(y_hat, y)
-    return tape.gradient(loss_value, self.variables)
+      loss_value = self.loss(y_hat, y)
+      mean_loss = tf.reduce_mean(loss_value)
+    return tape.gradient(mean_loss, self.variables), loss_value
 
   def train(self, x, y, optimizer):
-    grads = self.grad(x, y)
+    grads, loss_value = self.grad(x, y)
     optimizer.apply_gradients(zip(grads, self.variables),
                               global_step=tf.train.get_or_create_global_step())
+    return loss_value
 
-  def save(self):
-    self.save_weights("model_weights.h5")
+  def save(self, name="model_weights.h5"):
+    self.save_weights(name)
 
-  def load(self):
-    self.load_weights("model_weights.h5")
-
+  def load(self, name="model_weights.h5"):
+    x = tf.random_normal((1, 600, 800, 3))
+    self(x)
+    self.load_weights(name)
 

@@ -1,9 +1,34 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import random
 import scipy.ndimage as ndi
 from replay_memory import PrioritisedReplayMemory
+
+class MultiPlotter(object):
+  def __init__(self, columns=3, figsize=(20,20)):
+    self.columns = columns
+    self.images = []
+    self.figsize= figsize
+
+  def append(self, image):
+    self.images.append(image)
+    return self
+
+  def reset(self):
+    self.images = []
+
+  def show(self):
+    plt.figure(figsize=self.figsize)
+    count = len(self.images)
+    rows = math.ceil(1.0 * count / self.columns)
+    for i in range(count):
+      plt.subplot(rows, self.columns, i + 1)
+      plt.imshow(self.images[i])
+
+    plt.show()
+
 
 def multi_plot(images):
   plt.figure(figsize=(20, 20))
@@ -113,11 +138,15 @@ def generator(images, masks, memory, batch_size=256):
     if(len(memory) >= batch_size):
       new_batch_size = round(batch_size/2)
 
+    x = []
+    y = []
     for i in range(new_batch_size):
       index = np.random.randint(len(images))
       image, mask = preprocess_image(images[index], masks[index])
       memory.push(image, mask)
+      x.append(image)
+      y.append(mask)
 
     x, y, indices = memory.sample(batch_size)
-
+    # yield np.stack(x), np.stack(y)
     yield x, y, indices

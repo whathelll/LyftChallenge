@@ -1,6 +1,6 @@
 import unittest
 import cv2
-from generator import generator, preprocess_image, preprocess_labels, multi_plot
+from generator import generator, preprocess_image, preprocess_labels, multi_plot, MultiPlotter
 from replay_memory import PrioritisedReplayMemory
 import numpy as np
 import glob
@@ -64,6 +64,19 @@ class TestGenerator(unittest.TestCase):
     # multi_plot([x[index], y[index][:, :, 0], y[index][:, :, 1]])
     # index = 1
     # multi_plot([x[index], y[index][:, :, 0], y[index][:, :, 1]])
+
+  def test_multiplot(self):
+    plotter = MultiPlotter()
+
+    # plotter.reset()
+    images = self.images
+    masks = self.masks
+    for index in range(5):
+      plotter.append(images[index])\
+        .append(masks[index][:, :, 0])\
+        .append(masks[index][:, :, 1])
+    # plotter.show()
+
 
 
 if __name__ == "__main__":

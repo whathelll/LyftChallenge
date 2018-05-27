@@ -1,3 +1,5 @@
+# python -W ignore grader.py
+
 import sys, skvideo.io, json, base64
 import numpy as np
 from PIL import Image

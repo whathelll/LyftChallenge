@@ -2,7 +2,7 @@ import unittest
 import cv2
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
-from model import DownSample, DilationLayer, UpSample, DilatedCNN
+from model import InitialModule, DilatedCNN, ConvModule, DilatedModule, UpSampleModule
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
@@ -14,17 +14,49 @@ tfe.enable_eager_execution()
 
 class TestModel(unittest.TestCase):
   def setUp(self):
-    # self.downsample = DownSample()
     pass
 
-  # def test_down_sample(self):
-  #   model = DownSample(filters=13)
-  #   batch = tf.random_normal((1, 600, 800, 3))
-  #   out = model(batch)
-  #   self.assertEqual(out.shape, (1, 300, 400, 16))
-  #
-  #
-  #
+  def test_down_sample(self):
+    model = InitialModule(filters=13)
+    batch = tf.random_normal((1, 600, 800, 3))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 16))
+
+  def test_conv_module(self):
+    model = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False)
+    batch = tf.random_normal((1, 300, 400, 32))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 32))
+
+    model = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False, factorize=True)
+    batch = tf.random_normal((1, 300, 400, 32))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 32))
+
+    model = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=True)
+    batch = tf.random_normal((1, 300, 400, 16))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 150, 200, 48))
+
+
+  def test_dilated_module(self):
+    model = DilatedModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, dilation_rate=(4, 4))
+    batch = tf.random_normal((1, 300, 400, 32))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 32))
+
+    model = DilatedModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1)
+    batch = tf.random_normal((1, 300, 400, 32))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 32))
+
+  def test_upsample_module(self):
+    model = UpSampleModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1)
+    batch = tf.random_normal((1, 150, 200, 32))
+    out = model(batch)
+    self.assertEqual(out.shape, (1, 300, 400, 32))
+
+
   # def test_dilation_layer(self):
   #   model = DilationLayer(filters=13)
   #   batch = tf.random_normal((1, 75, 100, 25))
@@ -40,7 +72,7 @@ class TestModel(unittest.TestCase):
   #   self.assertEqual(out.shape, (1, 150, 200, 13))
 
 
-  def test_model(self):
+  def xtest_model(self):
     model = DilatedCNN()
     # x = tf.random_normal((1, 600, 800, 3))
     # print(x.shape)

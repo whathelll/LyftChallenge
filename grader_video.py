@@ -24,9 +24,14 @@ writer = skvideo.io.FFmpegWriter("outputvideo.mp4")
 answer_key = {}
 
 for rgb_frame in video:
-  x = tf.constant(np.expand_dims(rgb_frame, axis=0), dtype=tf.float32)
+  resized = cv2.resize(rgb_frame, (400, 320))
+  x = tf.constant(np.expand_dims(resized, axis=0), dtype=tf.float32)
   y_hat = tf.squeeze(model(x)).numpy()
+
+
   y_hat = np.where(y_hat >= 0.5, 255, 0).astype('uint8')
+  y_hat = cv2.resize(y_hat, (800, 600))
+
   road = y_hat[:, :, 0]
   car = y_hat[:, :, 1]
 

@@ -169,29 +169,31 @@ class UpSampleModule(tf.keras.Model):
 class DilatedCNN(tf.keras.Model):
   def __init__(self):
     super(DilatedCNN, self).__init__()
+    self.car_weight = 8.0
     self.initial = InitialModule(filters=13)
-    self.down1_1 = ConvModule(reduce_depth=4, expand_depth=48, dropout_rate=0.01, down_sample=True)
-    self.down1_2 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.01, down_sample=False)
-    self.down1_3 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.01, down_sample=False)
-    self.down1_4 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.01, down_sample=False)
-    self.down1_5 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.01, down_sample=False)
 
-    self.down2_0 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=True)
-    self.down2_1 = ConvModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, down_sample=False)
-    self.down2_2 = DilatedModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, dilation_rate=(2, 2))
-    self.down2_3 = ConvModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, down_sample=False, factorize=True)
-    self.down2_4 = DilatedModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, dilation_rate=(4, 4))
-    self.down2_5 = ConvModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, down_sample=False)
-    self.down2_6 = DilatedModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, dilation_rate=(8, 8))
-    self.down2_7 = ConvModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, down_sample=False, factorize=True)
-    self.down2_8 = DilatedModule(reduce_depth=32, expand_depth=128, dropout_rate=0.1, dilation_rate=(16, 16))
+    self.down1_1 = ConvModule(reduce_depth=4, expand_depth=16, dropout_rate=0.01, down_sample=True)
+    self.down1_2 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
+    self.down1_3 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
+    self.down1_4 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
+    self.down1_5 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
+
+    self.down2_0 = ConvModule(reduce_depth=16, expand_depth=32, dropout_rate=0.1, down_sample=True)
+    self.down2_1 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False)
+    self.down2_2 = DilatedModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, dilation_rate=(2, 2))
+    self.down2_3 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False, factorize=True)
+    self.down2_4 = DilatedModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, dilation_rate=(4, 4))
+    self.down2_5 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False)
+    self.down2_6 = DilatedModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, dilation_rate=(8, 8))
+    self.down2_7 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False, factorize=True)
+    self.down2_8 = DilatedModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, dilation_rate=(16, 16))
 
     # should we repeat section 2 without down2_0?
 
     self.up1_concat = tf.keras.layers.Concatenate()
-    self.up1_0 = UpSampleModule(reduce_depth=32, expand_depth=64, dropout_rate=0.1)
-    self.up1_1 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False)
-    self.up1_2 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False)
+    self.up1_0 = UpSampleModule(reduce_depth=16, expand_depth=32, dropout_rate=0.1)
+    self.up1_1 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False)
+    self.up1_2 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False)
 
     self.up2_concat = tf.keras.layers.Concatenate()
     self.up2_0 = UpSampleModule(reduce_depth=8, expand_depth=16, dropout_rate=0.1)
@@ -199,8 +201,9 @@ class DilatedCNN(tf.keras.Model):
 
     self.up3_concat = tf.keras.layers.Concatenate()
     self.up3_0 = UpSampleModule(reduce_depth=8, expand_depth=16, dropout_rate=0.1)
-    self.final = tf.keras.layers.Conv2D(2, kernel_size=(3, 3), padding='same', activation=tf.nn.sigmoid)
-    self.final_up = tf.keras.layers.Conv2DTranspose(2, kernel_size=(3, 3), strides=(2, 2), padding='same')
+    self.final = tf.keras.layers.Conv2D(3, kernel_size=(3, 3), padding='same', activation=tf.nn.softmax)
+    self.final_concat = tf.keras.layers.Concatenate()
+    self.final_up = tf.keras.layers.Conv2DTranspose(3, kernel_size=(3, 3), strides=(2, 2), padding='same', activation=tf.nn.softmax)
 
   def call(self, inputs, training=False):
     # now = time.time()
@@ -241,9 +244,10 @@ class DilatedCNN(tf.keras.Model):
     # print("up2:", up2.shape)
     # print(time.time() - now)
 
-    # up3 = self.up3_0(up2, training=training)
-    # x = self.final(up3)
-    x = self.final_up(up2)
+    up3 = self.up3_0(up2, training=training)
+    up3 = self.final_concat([up3, inputs])
+    x = self.final(up3)
+    # x = self.final_up(up2)
 
     # print(time.time() - now)
     return x
@@ -252,12 +256,15 @@ class DilatedCNN(tf.keras.Model):
     """road = layer [0], car = layer [1]"""
     road_y_hat = y_hat[:, :, :, 0]
     car_y_hat = y_hat[:, :, :, 1]
+    nothing_y_hat = y_hat[:, :, :, 2]
     road_y = y[:, :, :, 0]
     car_y = y[:, :, :, 1]
+    nothing_y = y[:, :, :, 2]
     car = self.loss_dice_coef(car_y_hat, car_y)
     road = self.loss_dice_coef(road_y_hat, road_y)
+    nothing = self.loss_dice_coef(nothing_y_hat, nothing_y)
 
-    loss = (9.*car + road)/10.
+    loss = (self.car_weight*car + road + nothing)
     return loss
 
 
@@ -293,7 +300,7 @@ class DilatedCNN(tf.keras.Model):
     self.save_weights(name)
 
   def load(self, name="model_weights.h5"):
-    x = tf.random_normal((1, 600, 800, 3))
+    x = tf.random_normal((1, 320, 400, 3))
     self(x)
     self.load_weights(name)
 

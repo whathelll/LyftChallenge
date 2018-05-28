@@ -54,7 +54,10 @@ def preprocess_labels(label_image):
                  vehicle_pixels[1][hood_indices])
   car[vehicle_pixels] = 1
   car[hood_pixels] = 0
-  return np.stack([road, car], axis=2)
+
+  others = np.zeros_like(road)
+  others[(car != 1) & (road != 1)] = 1
+  return np.stack([road, car, others], axis=2)
 
 
 
@@ -118,7 +121,7 @@ def augment_brightness_camera_images(image):
 
 
 def preprocess_image(x, y):
-  x, y = trans_image(x, y)
+  # x, y = trans_image(x, y)
 
   # randomly adjust brightness
   x = augment_brightness_camera_images(x)
@@ -135,7 +138,7 @@ def preprocess_image(x, y):
 def generator(images, masks, memory, batch_size=256):
   while 1:  # Loop forever so the generator never terminates
     new_batch_size = batch_size
-    if(len(memory) >= batch_size):
+    if(len(memory) > batch_size):
       new_batch_size = round(batch_size/2)
 
     x = []

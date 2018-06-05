@@ -1,7 +1,7 @@
 import unittest
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
-from model import DilatedCNN
+from model_v4 import DilatedCNN
 import time
 
 import os
@@ -18,17 +18,19 @@ class TestModel(unittest.TestCase):
   def test_model(self):
     model = DilatedCNN()
     # init weights
-    x = tf.random_normal((1, 320, 400, 3))
+    x = tf.random_normal((1, 600, 800, 3))
+    x = tf.image.resize_images(x, (320, 400))
     out = model(x)
-    print(out)
     print(out.shape)
 
-    x = tf.random_normal((1, 320, 400, 3))
+    x = tf.random_normal((1, 600, 800, 3))
     start = time.time()
-    for i in range(10):
+    x = tf.image.resize_images(x, (320, 400))
+    steps = 30
+    for i in range(steps):
       test = model(x)
 
-    duration = (time.time() - start) / 10
+    duration = (time.time() - start) / steps
     print("average duration:", round(duration, 4))
 
 

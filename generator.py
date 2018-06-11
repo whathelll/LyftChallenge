@@ -80,7 +80,7 @@ def trans_image(image, mask):
 def apply_transform(x,
                     transform_matrix,
                     channel_axis=2,
-                    fill_mode='nearest',
+                    fill_mode='reflect',
                     cval=0.):
   """Apply the image transformation specified by a matrix.
   # Arguments
@@ -121,7 +121,7 @@ def augment_brightness_camera_images(image):
 
 
 def preprocess_image(x, y):
-  # x, y = trans_image(x, y)
+  x, y = trans_image(x, y)
 
   # randomly adjust brightness
   x = augment_brightness_camera_images(x)
@@ -152,4 +152,16 @@ def generator(images, masks, memory, batch_size=256):
 
     x, y, indices = memory.sample(batch_size)
     # yield np.stack(x), np.stack(y)
-    yield x, y, indices
+    yield x, y#, indices
+
+def test_generator(images, masks, batch_size=256):
+  while 1:  # Loop forever so the generator never terminates
+    x = []
+    y = []
+    for i in range(batch_size):
+      index = np.random.randint(len(images))
+      image = images[index]
+      mask = masks[index]
+      x.append(image)
+      y.append(mask)
+    yield np.stack(x), np.stack(y)

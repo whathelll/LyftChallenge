@@ -8,3 +8,8 @@ Train
 data
 Example
 jwt
+*.h5
+*.mp4
+models/
+checkpoints/
+Test/

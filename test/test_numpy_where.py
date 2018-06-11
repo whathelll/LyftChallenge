@@ -13,9 +13,8 @@ class TestModel(unittest.TestCase):
                  ])
 
     print(np.where(y > 0, 255, 0))
-
-
-
+    a = "abc" + "cde"
+    print(a)
 
 
 if __name__ == "__main__":

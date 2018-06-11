@@ -9,8 +9,6 @@ from generator import MultiPlotter, preprocess_labels, generator
 from replay_memory import PrioritisedReplayMemory
 from model_v4 import DilatedCNN
 
-tfe.enable_eager_execution()
-
 parser = argparse.ArgumentParser(description='traing the model')
 parser.add_argument('--load', type=bool, default=False, help='whether to load the model')
 parser.add_argument('--save', type=bool, default=False, help='whether to save the model')
@@ -29,29 +27,36 @@ def training_cycle(model, gen, memory, learning_rate=args.learning_rate, iterati
   print("Starting training cycle with lr: {} for {} iterations".format(learning_rate, iterations))
   now = time.time()
   optimizer = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
-  loss_mean = tfe.metrics.Mean()
-  car_loss_mean = tfe.metrics.Mean()
-  road_loss_mean = tfe.metrics.Mean()
 
 
-  for i in range(iterations):
-    images, masks, indices = next(gen)
-    # images, masks = next(gen)
-    x = tf.constant(images, dtype=tf.float32)
-    y = tf.constant(masks, dtype=tf.float32)
+  x = tf.placeholder(tf.float32, [None, 320, 400, 3])
+  y = tf.placeholder(tf.float32, [None, 320, 400, 3])
+  y_hat = model(x)
+  loss, car_loss, road_loss = model.loss(y_hat, y)
+  loss_reduced_mean = tf.reduce_mean(loss)
+  train_op = optimizer.minimize(loss_reduced_mean)
 
-    loss, car_loss, road_loss = model.train(x, y, optimizer)
-    car_loss = tf.squeeze(car_loss)
-    memory.update(indices, car_loss.numpy())
-    loss_mean(tf.squeeze(loss))
-    car_loss_mean(tf.squeeze(car_loss))
-    road_loss_mean(tf.squeeze(road_loss))
-    if (i+1) % 50 == 0 or i == 0:
-      print("run {} loss: {}, car loss: {}, road loss:{}".format(i+1, loss_mean.result(), car_loss_mean.result(), road_loss_mean.result()))
-      loss_mean = tfe.metrics.Mean()
-  duration = time.time() - now
-  print("Training cycle took:", duration/60)
-  validate(model)
+  loss_mean, loss_mean_update_op = tf.metrics.mean(tf.squeeze(loss))
+  car_loss_mean, car_loss_mean_update_op = tf.metrics.mean(tf.squeeze(car_loss))
+  road_loss_mean, road_loss_mean_update_op = tf.metrics.mean(tf.squeeze(road_loss))
+
+  with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())
+
+    for i in range(iterations):
+      images, masks, indices = next(gen)
+
+      sess.run([train_op, loss_mean_update_op, car_loss_mean_update_op, road_loss_mean_update_op], feed_dict={x: images, y: masks})
+      # memory.update(indices, car_loss.numpy())
+
+      if (i+1) % 50 == 0 or i == 0:
+        print("run {} loss: {}, car loss: {}, road loss:{}".format(i + 1, sess.run(loss_mean), sess.run(car_loss_mean),
+                                                                   sess.run(road_loss_mean)))
+    duration = time.time() - now
+    print("Training cycle took:", duration/60)
+    model.save()
+  validate(model)  #this fails at the moment. Saving doesn't quite work.
 
 def display_samples(model, gen):
   images, masks, indices = next(gen)
@@ -79,55 +84,56 @@ def train():
     print("loading model")
     model.load()
 
-  training_cycle(model, gen, memory, 1e-2, 200)
+  training_cycle(model, gen, memory, 1e-2, 10)
+  model.save()
 
-  for i in range(7):
-    training_cycle(model, gen, memory, 1e-3, 1000)
-    model.save()
-
-  for i in range(5):
-    training_cycle(model, gen, memory, 1e-4, 1000)
-    model.save()
-
-  for i in range(5):
-    training_cycle(model, gen, memory, 5e-5, 1000)
-    model.save()
-
-  for i in range(5):
-    training_cycle(model, gen, memory, 1e-5, 1000)
-    model.save()
+  # for i in range(7):
+  #   training_cycle(model, gen, memory, 1e-3, 1000)
+  #   model.save()
+  #
+  # for i in range(5):
+  #   training_cycle(model, gen, memory, 1e-4, 1000)
+  #   model.save()
+  #
+  # for i in range(5):
+  #   training_cycle(model, gen, memory, 5e-5, 1000)
+  #   model.save()
+  #
+  # for i in range(5):
+  #   training_cycle(model, gen, memory, 1e-5, 1000)
+  #   model.save()
 
 
 def validate(model=None):
-  if model is None:
-    model = DilatedCNN()
-    model.load()
+
+  # model.load()
   batch_size = 12
 
-  mean = tfe.metrics.Mean()
+
+  x = tf.placeholder(tf.float32, [None, 320, 400, 3])
+  y = tf.placeholder(tf.float32, [None, 320, 400, 3])
+  y_hat = model(x)
+  loss, car_loss, road_loss = model.loss(y_hat, y)
+
+  loss_mean, loss_mean_update_op = tf.metrics.mean(tf.squeeze(loss))
   now = time.time()
   index_start = 0
-  while True:
-    index_end = min(x_test.shape[0], index_start+batch_size)
-    x = tf.constant(x_test[index_start:index_end], dtype=tf.float32)
-    y = tf.constant(y_test[index_start:index_end], dtype=tf.float32)
+  with tf.Session() as sess:
+    # model.load()
+    while True:
+      index_end = min(x_test.shape[0], index_start+batch_size)
+      images = x_test[index_start:index_end]
+      masks = y_test[index_start:index_end]
 
-    # x = tf.image.resize_images(x, (160, 200))
-    # y = tf.image.resize_images(y, (160, 200))
+      sess.run([y_hat, loss_mean_update_op], feed_dict={x: images, y: masks})
 
-    y_hat = model(x).numpy()
-    y_hat = np.where(y_hat >= 0.5, 1, 0).astype("float32")
+      index_start += batch_size
+      if index_start >= x_test.shape[0]:
+        break
 
-    loss = model.loss(y_hat, y)
-    mean(tf.reduce_mean(loss))
-    # print("Validation loss is:", loss)
-    index_start += batch_size
-    if index_start >= x_test.shape[0]:
-      break
-
-  duration = time.time() - now
-  print("Validation took:", duration/60)
-  print("Validation loss is:", mean.result().numpy())
+    duration = time.time() - now
+    print("Validation took:", duration/60)
+    print("Validation loss is:", sess.run(loss_mean))
 
 def init():
   batch_size = 12

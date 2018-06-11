@@ -2,11 +2,25 @@ import tensorflow as tf
 import tensorflow.contrib.eager as tfe
 import time
 
+class Conv1x1Module(tf.keras.Model):
+  def __init__(self, filters, use_bias=True):
+    super(Conv1x1Module, self).__init__()
+    self.conv1 = tf.keras.layers.Conv2D(filters, kernel_size=(1, 1), padding='same', use_bias=use_bias)
+    self.prelu1 = tf.keras.layers.PReLU()
+    self.bn1 = tf.keras.layers.BatchNormalization()
+
+  def call(self, inputs, training=False):
+    x = self.conv1(inputs)
+    x = self.bn1(x, training=training)
+    x = self.prelu1(x)
+    return x
+
 class InitialModule(tf.keras.Model):
   def __init__(self, filters):
     super(InitialModule, self).__init__()
-    self.conv = tf.keras.layers.Conv2D(filters, kernel_size=(3, 3), padding='same', strides=(2, 2), activation=tf.nn.relu)
+    self.conv = tf.keras.layers.Conv2D(filters, kernel_size=(3, 3), padding='same', strides=(2, 2))
     self.bn1 = tf.keras.layers.BatchNormalization()
+    self.prelu1 = tf.keras.layers.PReLU()
     self.maxpool = tf.keras.layers.MaxPooling2D(pool_size=(2, 2), padding='same')
     self.concat = tf.keras.layers.Concatenate()
 
@@ -14,6 +28,7 @@ class InitialModule(tf.keras.Model):
     pool = self.maxpool(inputs)
     x = self.conv(inputs)
     x = self.bn1(x, training=training)
+    x = self.prelu1(x)
     x = self.concat([x, pool])
     return x
 
@@ -48,6 +63,9 @@ class ConvModule(tf.keras.Model):
     self.prelu_last = tf.keras.layers.PReLU()
 
     self.concat = tf.keras.layers.Concatenate()
+    self.conv4 = tf.keras.layers.Conv2D(expand_depth, kernel_size=(1, 1), padding='same')
+    self.prelu4 = tf.keras.layers.PReLU()
+    self.bn4 = tf.keras.layers.BatchNormalization()
 
   def call(self, inputs, training=False):
     if self.down_sample:
@@ -75,6 +93,9 @@ class ConvModule(tf.keras.Model):
 
     if self.down_sample:
       x = self.concat([x, main])
+      x = self.conv4(x)
+      x = self.bn4(x, training=training)
+      x = self.prelu4(x)
     else:
       x = tf.add(x, main)
       x = self.prelu_last(x)
@@ -123,19 +144,16 @@ class UpSampleModule(tf.keras.Model):
     super(UpSampleModule, self).__init__()
     # self.upconv1 = tf.keras.layers.Conv2D(expand_depth, kernel_size=(1, 1), padding='same')
     self.upbn1 = tf.keras.layers.BatchNormalization()
-    self.upsample = tf.keras.layers.Conv2DTranspose(expand_depth, kernel_size=(3, 3), strides=(2, 2), padding='same', activation=tf.nn.relu)
+    self.upsample = tf.keras.layers.Conv2DTranspose(expand_depth, kernel_size=(3, 3), strides=(2, 2), padding='same')
+    self.prelu0 = tf.keras.layers.PReLU()
 
-    self.conv1 = tf.keras.layers.Conv2D(reduce_depth, kernel_size=(1, 1), padding='same', use_bias=False)
-    self.prelu1 = tf.keras.layers.PReLU()
-    self.bn1 = tf.keras.layers.BatchNormalization()
+    self.conv1 = Conv1x1Module(reduce_depth, use_bias=False)
 
     self.conv2 = tf.keras.layers.Conv2DTranspose(expand_depth, kernel_size=(3, 3), strides=(2, 2), padding='same')
     self.prelu2 = tf.keras.layers.PReLU()
     self.bn2 = tf.keras.layers.BatchNormalization()
 
-    self.conv3 = tf.keras.layers.Conv2D(expand_depth, kernel_size=(1, 1), padding='same')
-    self.prelu3 = tf.keras.layers.PReLU()
-    self.bn3 = tf.keras.layers.BatchNormalization()
+    self.conv3 = Conv1x1Module(expand_depth)
 
     self.regularizer = tf.keras.layers.SpatialDropout2D(dropout_rate)
     self.prelu_last = tf.keras.layers.PReLU()
@@ -145,18 +163,15 @@ class UpSampleModule(tf.keras.Model):
     # up = self.upconv1(inputs)
     up = self.upsample(inputs)
     up = self.upbn1(up, training=training)
+    up = self.prelu0(up)
 
-    x = self.conv1(inputs)
-    x = self.bn1(x, training=training)
-    x = self.prelu1(x)
+    x = self.conv1(inputs, training=training)
 
     x = self.conv2(x)
     x = self.bn2(x, training=training)
     x = self.prelu2(x)
 
-    x = self.conv3(x)
-    x = self.bn3(x, training=training)
-    x = self.prelu3(x)
+    x = self.conv3(x, training=training)
 
     x = self.regularizer(x, training=training)
 
@@ -170,15 +185,15 @@ class DilatedCNN(tf.keras.Model):
   def __init__(self):
     super(DilatedCNN, self).__init__()
     self.car_weight = 4.0
-    self.initial = InitialModule(filters=13)
+    self.initial = InitialModule(filters=29)
 
-    self.down1_1 = ConvModule(reduce_depth=8, expand_depth=16, dropout_rate=0.01, down_sample=True)
+    self.down1_1 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=True)
     self.down1_2 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
     self.down1_3 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
     self.down1_4 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
     self.down1_5 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.01, down_sample=False)
 
-    self.down2_0 = ConvModule(reduce_depth=16, expand_depth=32, dropout_rate=0.1, down_sample=True)
+    self.down2_0 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=True)
     self.down2_1 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False)
     self.down2_2 = DilatedModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, dilation_rate=(2, 2))
     self.down2_3 = ConvModule(reduce_depth=16, expand_depth=64, dropout_rate=0.1, down_sample=False, factorize=True)
@@ -195,13 +210,15 @@ class DilatedCNN(tf.keras.Model):
     # should we repeat section 2 without down2_0?
 
     self.up1_concat = tf.keras.layers.Concatenate()
-    self.up1_0 = UpSampleModule(reduce_depth=16, expand_depth=16, dropout_rate=0.1)
-    self.up1_1 = ConvModule(reduce_depth=8, expand_depth=48, dropout_rate=0.1, down_sample=False)
-    self.up1_2 = ConvModule(reduce_depth=8, expand_depth=48, dropout_rate=0.1, down_sample=False)
+    self.up1_0_1x1 = Conv1x1Module(32)
+    self.up1_0 = UpSampleModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1)
+    self.up1_1 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False)
+    self.up1_2 = ConvModule(reduce_depth=8, expand_depth=32, dropout_rate=0.1, down_sample=False)
 
     self.up2_concat = tf.keras.layers.Concatenate()
-    self.up2_0 = UpSampleModule(reduce_depth=8, expand_depth=8, dropout_rate=0.1)
-    self.up2_1 = ConvModule(reduce_depth=8, expand_depth=24, dropout_rate=0.1, down_sample=False)
+    self.up2_0_1x1 = Conv1x1Module(16)
+    self.up2_0 = UpSampleModule(reduce_depth=8, expand_depth=16, dropout_rate=0.1)
+    self.up2_1 = ConvModule(reduce_depth=8, expand_depth=16, dropout_rate=0.1, down_sample=False)
 
     self.up3_0 = UpSampleModule(reduce_depth=8, expand_depth=8, dropout_rate=0.1)
     self.final_0 = tf.keras.layers.Conv2D(3, kernel_size=(3, 3), padding='same', activation=tf.nn.relu)
@@ -216,8 +233,8 @@ class DilatedCNN(tf.keras.Model):
     # print(time.time() - now)
 
     down1 = self.down1_1(init, training=training)
-    down1 = self.down1_2(down1, training=training)
-    down1 = self.down1_3(down1, training=training)
+    # down1 = self.down1_2(down1, training=training)
+    # down1 = self.down1_3(down1, training=training)
     # down1 = self.down1_4(down1, training=training)
     # down1 = self.down1_5(down1, training=training)
     # print("down1:", down1.shape)
@@ -231,7 +248,7 @@ class DilatedCNN(tf.keras.Model):
     # down2 = self.down2_5(down2, training=training)
     down2 = self.down2_6(down2, training=training)
     # down2 = self.down2_7(down2, training=training)
-    down2 = self.down2_8(down2, training=training)
+    # down2 = self.down2_8(down2, training=training)
     down2 = self.down2_9(down2, training=training)
     down2 = self.down2_10(down2, training=training)
     down2 = self.down2_11(down2, training=training)
@@ -241,19 +258,21 @@ class DilatedCNN(tf.keras.Model):
 
     up1 = self.up1_0(down2, training=training)
     up1 = self.up1_concat([up1, down1])
-    up1 = self.up1_1(up1, training=training)
-    up1 = self.up1_2(up1, training=training)
+    up1 = self.up1_0_1x1(up1)
+    # up1 = self.up1_1(up1, training=training)
+    # up1 = self.up1_2(up1, training=training)
     # print("up1:", up1.shape)
     # print(time.time() - now)
 
     up2 = self.up2_0(up1, training=training)
     up2 = self.up2_concat([up2, init])
-    up2 = self.up2_1(up2, training=training)
+    up2 = self.up2_0_1x1(up2)
+    # up2 = self.up2_1(up2, training=training)
     # print("up2:", up2.shape)
     # print(time.time() - now)
 
     up3 = self.up3_0(up2, training=training)
-    # up3 = self.final_concat([up3, inputs])
+    up3 = self.final_concat([up3, inputs])
     # up3 = self.final_0(up3)
     x = self.final_1(up3)
     # x = self.final_up(up2)
@@ -305,10 +324,10 @@ class DilatedCNN(tf.keras.Model):
                               global_step=tf.train.get_or_create_global_step())
     return loss_value
 
-  def save(self, name="model_weights.h5"):
+  def save(self, name="model_v3_weights.h5"):
     self.save_weights(name)
 
-  def load(self, name="model_weights.h5"):
+  def load(self, name="model_v3_weights.h5"):
     x = tf.random_normal((1, 320, 400, 3))
     self(x)
     self.load_weights(name)

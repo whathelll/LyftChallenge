@@ -2,10 +2,11 @@ import unittest
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
 from model_v4 import DilatedCNN
+from UNet import UNet
 import time
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+# os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 
 tfe.enable_eager_execution()
 
@@ -24,9 +25,9 @@ class TestModel(unittest.TestCase):
     print(out.shape)
 
     x = tf.random_normal((1, 600, 800, 3))
-    start = time.time()
     x = tf.image.resize_images(x, (320, 400))
-    steps = 30
+    start = time.time()
+    steps = 100
     for i in range(steps):
       test = model(x)
 

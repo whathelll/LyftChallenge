@@ -13,8 +13,12 @@ class TestModel(unittest.TestCase):
                  ])
 
     print(np.where(y > 0, 255, 0))
-    a = "abc" + "cde"
-    print(a)
+
+    frame1 = np.random.random((320, 400, 3))
+    frame2 = np.random.random((320, 400, 3))
+
+    a = np.hstack((frame1, frame2))
+    print(a.shape)
 
 
 if __name__ == "__main__":

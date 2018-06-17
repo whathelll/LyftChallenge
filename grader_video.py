@@ -39,11 +39,13 @@ for rgb_frame in video:
   road = y_hat[:, :, 0]
   car = y_hat[:, :, 1]
   other = y_hat[:, :, 2]
+  # other = rgb_frame[:, :, 2]
 
   overlay = np.stack([car, road, other], axis=2)
   frame = cv2.addWeighted(rgb_frame, 0.5, overlay, 0.5, 0)
 
-  writer.writeFrame(frame)
+  outimage = np.hstack((rgb_frame, frame))
+  writer.writeFrame(outimage)
 
 
 writer.close()

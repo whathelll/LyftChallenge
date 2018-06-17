@@ -9,7 +9,7 @@ class UNetConvAndDownModule(tf.keras.Model):
     # self.conv0 = SpatialConvModule(filters)
     # self.conv1 = SpatialConvModule(filters)
     self.conv0 = ConvModule(filters)
-    self.conv1 = ConvModule(filters)
+    self.conv1 = ConvModule(filters, dilation_rate=(2, 2))
 
   def call(self, inputs, training=False):
     d1 = self.conv0(inputs, training=training)
@@ -20,7 +20,7 @@ class UNetConvAndUpModule(tf.keras.Model):
   def __init__(self, filters=64, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.conv0 = ConvModule(filters)
-    self.conv1 = ConvModule(filters)
+    self.conv1 = ConvModule(filters, dilation_rate=(2, 2))
     self.upsample = tf.keras.layers.UpSampling2D()
 
   def call(self, inputs, training=False):
